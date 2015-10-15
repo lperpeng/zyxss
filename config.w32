@@ -1,0 +1,13 @@
+// $Id$
+// vim:ft=javascript
+
+// If your extension references something external, use ARG_WITH
+// ARG_WITH("zyxss", "for zyxss support", "no");
+
+// Otherwise, use ARG_ENABLE
+// ARG_ENABLE("zyxss", "enable zyxss support", "no");
+
+if (PHP_MYXSS != "no") {
+	EXTENSION("zyxss", "zyxss.c");
+}
+
