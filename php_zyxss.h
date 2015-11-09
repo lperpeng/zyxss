@@ -59,12 +59,14 @@ PHP_FUNCTION(filter_xss);
 /* 
   	Declare any global variables you may need between the BEGIN
 	and END macros here:     
-
-ZEND_BEGIN_MODULE_GLOBALS(zyxss)
-	long  global_value;
-	char *global_string;
-ZEND_END_MODULE_GLOBALS(zyxss)
 */
+ZEND_BEGIN_MODULE_GLOBALS(zyxss)
+	
+	char *unsafe_js;
+	char *unsafe_html;
+	char *unsafe_char;
+ZEND_END_MODULE_GLOBALS(zyxss)
+
 
 /* In every utility function you add that needs to use variables 
    in php_zyxss_globals, call TSRMLS_FETCH(); after declaring other 

@@ -7,9 +7,9 @@ dnl without editing.
 
 dnl If your extension references something external, use with:
 
-dnl PHP_ARG_WITH(zyxss, for zyxss support,
-dnl Make sure that the comment is aligned:
-dnl [  --with-zyxss             Include zyxss support])
+PHP_ARG_WITH(zyxss, for zyxss support,
+	Make sure that the comment is aligned:
+	[  --with-zyxss             Include zyxss support])
 
 dnl Otherwise use enable:
 
@@ -60,4 +60,11 @@ if test "$PHP_ZYXSS" != "no"; then
   dnl PHP_SUBST(ZYXSS_SHARED_LIBADD)
 
   PHP_NEW_EXTENSION(zyxss, zyxss.c, $ext_shared)
+fi
+
+if test -z "$PHP_DEBUG"; then
+        AC_ARG_ENABLE(debug,
+                [--enable-debg  compile with debugging system],
+                [PHP_DEBUG=$enableval], [PHP_DEBUG=no]
+        )
 fi

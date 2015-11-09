@@ -26,10 +26,11 @@
 #include "php_ini.h"
 #include "ext/standard/info.h"
 #include "php_zyxss.h"
+#include "split.h"
 
-/* If you declare any globals in php_zyxss.h uncomment this:
+/* If you declare any globals in php_zyxss.h uncomment this:*/
 ZEND_DECLARE_MODULE_GLOBALS(zyxss)
-*/
+
 
 /* True global resources - no need for thread safety here */
 static int le_zyxss;
@@ -64,7 +65,7 @@ zend_object_value zyxss_obj_ctor(zend_class_entry *ce TSRMLS_DC) {/*{{{*/
 	return retval;
 }/*}}}*/
 
-static char *zyxss_preg_replace(char *strRegex, char* source, int source_len TSRMLS_DC) {/*{{{*/
+static char *zyxss_replace(char *strRegex, char* source, int source_len TSRMLS_DC) {/*{{{*/
 	pcre *reCompiled;
 	pcre_extra *pcreExtra;
 	int pcreExecRet;  /* count of matches */
@@ -126,11 +127,27 @@ static char *zyxss_preg_replace(char *strRegex, char* source, int source_len TSR
 }
 /*}}}*/
 
-static char *getBadTagsPattern(int unclosed TSRMLS_DC) {/*{{{*/
-	char *badTags[] = {"img","javascript", "vbscript", "expression", "applet", "meta", "xml", "blink", "link", "style", "script", "embed", "object", "iframe", "frame", "frameset", "ilayer", "layer", "bgsound", "title", "base", NULL};
-	char **tag, *concat_buffer, *buffer;
+static char *get_unsafe_html(int unclosed TSRMLS_DC) {/*{{{*/
+	char *unsafe_str;
+	char **unsafe_array;
+	char *ini_unsafe_str = ZYXSS_G(unsafe_html);;
+	char *concat_buffer, *buffer;
+	const char *pattern = "|";
 	int total_len, shared_len, tag_len, cpy_offset, num_tags;
+	int unsafe_num=0;
+	int i;
+	
 	total_len = cpy_offset = 0;
+	unsafe_str = estrdup(ini_unsafe_str);
+	
+	
+	unsafe_num = str_split_num(unsafe_str,pattern);
+	if(unsafe_num <= 0){
+		
+	}
+	unsafe_array = (char **)emalloc(sizeof(char*)*(unsafe_num+1));
+	str_split(unsafe_array,unsafe_str,pattern);
+	
 	if (0 == unclosed) {
 		shared_len = strlen("<[^>]*>[]*</[^>]*>|<[/]*[^>]*>|");
 		num_tags = 3;
@@ -138,47 +155,67 @@ static char *getBadTagsPattern(int unclosed TSRMLS_DC) {/*{{{*/
 		shared_len = strlen("<[^>]*>[]*</[^>]*>|<[/]*[^>]*>|<[\\s]*[^>]*|");
 		num_tags = 4;
 	}
-	for (tag = badTags; *tag != NULL; tag++) {
-		total_len += shared_len + num_tags * strlen(*tag);
+	//计算匹配规则总长度.
+	for(i=0;i<=unsafe_num;i++){
+		total_len += shared_len + num_tags * strlen(unsafe_array[i]);
 	}
+	
 	concat_buffer = (char *)emalloc(total_len + 1);
-	for (tag = badTags; *tag != NULL; tag++) {
-		tag_len = shared_len + num_tags * strlen(*tag) + 1;
+	for(i=0;i<=unsafe_num;i++){
+		tag_len = shared_len + num_tags * strlen(unsafe_array[i]) + 1;
 		buffer = (char *)emalloc(tag_len);
 		if (0 == unclosed) {
-			snprintf(buffer, tag_len, "<%s[^>]*>[]*</%s[^>]*>|<[/]*%s[^>]*>|", *tag, *tag, *tag);
+			snprintf(buffer, tag_len, "<%s[^>]*>[]*</%s[^>]*>|<[/]*%s[^>]*>|", unsafe_array[i], unsafe_array[i], unsafe_array[i]);
 		} else {
-			snprintf(buffer, tag_len, "<%s[^>]*>[]*</%s[^>]*>|<[/]*%s[^>]*>|<[\\s]*%s[^>]*|", *tag, *tag, *tag, *tag);
+			snprintf(buffer, tag_len, "<%s[^>]*>[]*</%s[^>]*>|<[/]*%s[^>]*>|<[\\s]*%s[^>]*|", unsafe_array[i], unsafe_array[i], unsafe_array[i], unsafe_array[i]);
 		}
 		memcpy(concat_buffer + cpy_offset, buffer, tag_len);
 		efree(buffer);
 		cpy_offset += tag_len - 1;
 	}
+	efree(unsafe_array);
+	efree(unsafe_str);
+
 	/* trim the last "|" */
 	concat_buffer[cpy_offset - 1] = '\0';
 	return concat_buffer;
 }
 /*}}}*/
 
-static char *getBadAttrPattern() {/*{{{*/
-	char *badAttrs[] = {"onabort\\=","onevent\\=", "onactivate\\=", "onafterprint\\(", "\"onafterupdate\"", "onbeforeactivate\\=", "onbeforecopy\\=", "onbeforecut\\=", "onbeforedeactivate\\=", "onbeforeeditfocus\\=", "onbeforepaste\\=", "onbeforeprint\\=", "onbeforeunload\\=", "=\"onbeforeupdate\"", "onblur\\=", "onbounce\\=", "=\"oncellchange\"", "onchange\\=", "onclick\\=", "oncontextmenu\\=", "oncontrolselect\\=", "oncopy\\=", "oncut\\=", "ondataavaible\\=", "ondatasetchanged\\=", "\"ondatasetcomplete\"=", "ondblclick\\=", "ondeactivate\\=", "ondrag\\=", "ondragdrop\\=", "ondragend\\=", "ondragenter\\=", "ondragleave\\=", "ondragover\\=", "ondragstart\\=", "ondrop\\=", "onerror\\=", "onerrorupdate\\=", "onfilterupdate\\=", "onfinish\\=", "onfocus\\=", "onfocusin\\=", "onfocusout\\=", "onhelp\\=", "onkeydown\\=", "onkeypress\\=", "onkeyup\\=", "onlayoutcomplete\\=", "onload\\=", "onlosecapture\\=", "onmousedown\\=", "onmouseenter\\=", "onmouseleave\\=", "onmousemove\\=", "onmoveout\\=", "onmouseover\\=", "onmouseup\\=", "onmousewheel\\=", "onmove\\=", "onmoveend\\=", "onmovestart\\=", "onpaste\\=", "onpropertychange\\=", "onreadystatechange\\=", "onreset\\=", "onresize\\=", "onresizeend\\=", "onresizestart\\=", "onrowexit\\=", "onrowsdelete\\=", "onrowsinserted\\=", "onscroll\\=", "onselect\\=", "onselectionchange\\=", "onselectstart\\=", "onstart\\=", "onstop\\=", "onsubmit\\=", "onunload\\=", "\"javascript\"", "void\\(", "document.forms", NULL};
-	char **tag, *concat_buffer, *buffer;
+static char *get_unsafe_js() {/*{{{*/
+	char *unsafe_str;
+	char **unsafe_array;
+	int no_safe_num = 0;
+	char *ini_unsafe_str = ZYXSS_G(unsafe_js);
+	char *concat_buffer, *buffer;
 	int total_len, shared_len, tag_len, cpy_offset, num_tags;
+	const char *pattern="|";
+	int i;
+	
 	total_len = cpy_offset = 0;
 	num_tags = 2;
 	shared_len = strlen("|[\\s.]*=[\\s]*\"[^\"]*\"|");
-	for (tag = badAttrs; *tag != NULL; tag++) {
-		total_len += shared_len + num_tags * strlen(*tag);
+	unsafe_str = estrdup(ini_unsafe_str);
+	
+	no_safe_num = str_split_num(unsafe_str,pattern);
+	unsafe_array = (char **)emalloc(sizeof(char*)*(no_safe_num+1));
+	str_split(unsafe_array,unsafe_str,pattern);
+	
+	for(i=0;i<=no_safe_num;i++){
+		total_len += shared_len + num_tags * strlen(unsafe_array[i]);
 	}
+	
 	concat_buffer = (char *)emalloc(total_len + 1);
-	for (tag = badAttrs; *tag != NULL; tag++) {
-		tag_len = shared_len + num_tags * strlen(*tag) + 1;
+	for (i=0;i<=no_safe_num;i++) {
+		tag_len = shared_len + num_tags * strlen(unsafe_array[i]) + 1;
 		buffer = (char *)emalloc(tag_len);
-		snprintf(buffer, tag_len, "%s|%s[\\s.]*=[\\s]*\"[^\"]*\"|", *tag, *tag);
+		snprintf(buffer, tag_len, "%s|%s[\\s.]*=[\\s]*\"[^\"]*\"|", unsafe_array[i], unsafe_array[i]);
 		memcpy(concat_buffer + cpy_offset, buffer, tag_len);
 		efree(buffer);
 		cpy_offset += tag_len - 1;
 	}
+	efree(unsafe_array);
+	efree(unsafe_str);
 	/* trim the last "|" */
 	concat_buffer[cpy_offset - 1] = '\0';
 	return concat_buffer;
@@ -201,8 +238,8 @@ PHP_METHOD(zyxss, __destruct) {/*{{{*/
 const zend_function_entry zyxss_functions[] = {
 	PHP_ME(zyxss, __construct, NULL, ZEND_ACC_PUBLIC | ZEND_ACC_CTOR)
 	PHP_ME(zyxss, __destruct, NULL, ZEND_ACC_PUBLIC | ZEND_ACC_DTOR)
-	PHP_FE(filter_attributes,	NULL)
-	PHP_FE(filter_tags,	NULL)
+	PHP_FE(filter_js,	NULL)
+	PHP_FE(filter_doc,	NULL)
 	PHP_FE(filter_characters,	NULL)
 	PHP_FE(filter_xss,	NULL)
 	PHP_FE_END	/* Must be the last line in zyxss_functions[] */
@@ -235,32 +272,36 @@ ZEND_GET_MODULE(zyxss)
 
 /* {{{ PHP_INI
  */
-/* Remove comments and fill if you need to have entries in php.ini
+/* Remove comments and fill if you need to have entries in php.ini*/
 PHP_INI_BEGIN()
-    STD_PHP_INI_ENTRY("zyxss.global_value",      "42", PHP_INI_ALL, OnUpdateLong, global_value, zend_zyxss_globals, zyxss_globals)
-    STD_PHP_INI_ENTRY("zyxss.global_string", "foobar", PHP_INI_ALL, OnUpdateString, global_string, zend_zyxss_globals, zyxss_globals)
+    STD_PHP_INI_ENTRY("zyxss.unsafe_js",      "test", PHP_INI_ALL, OnUpdateString, unsafe_js, zend_zyxss_globals, zyxss_globals)
+    STD_PHP_INI_ENTRY("zyxss.unsafe_html", "test", PHP_INI_ALL, OnUpdateString, unsafe_html, zend_zyxss_globals, zyxss_globals)
+    STD_PHP_INI_ENTRY("zyxss.unsafe_char", "test", PHP_INI_ALL, OnUpdateString, unsafe_char, zend_zyxss_globals, zyxss_globals)
 PHP_INI_END()
-*/
+
 /* }}} */
 
 /* {{{ php_zyxss_init_globals
  */
-/* Uncomment this function if you have INI entries
+/* Uncomment this function if you have INI entries*/
 static void php_zyxss_init_globals(zend_zyxss_globals *zyxss_globals)
 {
-	zyxss_globals->global_value = 0;
-	zyxss_globals->global_string = NULL;
+	zyxss_globals->unsafe_js = NULL;
+	zyxss_globals->unsafe_html = NULL;
+	zyxss_globals->unsafe_char = NULL;
 }
-*/
+
 /* }}} */
 
 /* {{{ PHP_MINIT_FUNCTION
  */
 PHP_MINIT_FUNCTION(zyxss)
 {
-	/* If you have INI entries, uncomment these lines 
+	/**
+	 * 载入zyxss ini配置数据. 
+	 */
 	REGISTER_INI_ENTRIES();
-	*/
+	
 	zend_class_entry ce;
 	/* register dll list object */
 	INIT_CLASS_ENTRY(ce, "ZYXSS", zyxss_functions);
@@ -276,9 +317,11 @@ PHP_MINIT_FUNCTION(zyxss)
  */
 PHP_MSHUTDOWN_FUNCTION(zyxss)
 {
-	/* uncomment this line if you have INI entries
+	/**
+	 * 注销
+	 */
 	UNREGISTER_INI_ENTRIES();
-	*/
+	
 	return SUCCESS;
 }
 /* }}} */
@@ -307,11 +350,12 @@ PHP_MINFO_FUNCTION(zyxss)
 {
 	php_info_print_table_start();
 	php_info_print_table_header(2, "zyxss support", "enabled");
+	php_info_print_table_header(2, "author", "lper<lper@foxmail.com>");
 	php_info_print_table_end();
 
-	/* Remove comments if you have entries in php.ini
+	/* 在phpinfo显示zyxss 所需配置的信息*/
 	DISPLAY_INI_ENTRIES();
-	*/
+	
 }
 /* }}} */
 
@@ -322,9 +366,9 @@ PHP_MINFO_FUNCTION(zyxss)
    follow this convention for the convenience of others editing your code.
 */
 
-/* {{{ proto string filter_attributes(string source)
+/* {{{ proto string filter_js(string source)
    Array exception) */
-PHP_FUNCTION(filter_attributes)
+PHP_FUNCTION(filter_js)
 {
 	char *source = NULL;
 	int argc = ZEND_NUM_ARGS();
@@ -334,9 +378,9 @@ PHP_FUNCTION(filter_attributes)
 	if (zend_parse_parameters(argc TSRMLS_CC, "s", &source, &source_len) == FAILURE) 
 		return;
 
-	char *badAttrsPattern = getBadAttrPattern();
-	result = zyxss_preg_replace(badAttrsPattern, source, source_len TSRMLS_CC);
-	efree(badAttrsPattern);
+	char *unsafe_str = get_unsafe_js();
+	result = zyxss_replace(unsafe_str, source, source_len TSRMLS_CC);
+	efree(unsafe_str);
 	if (NULL == result) {
 		RETVAL_FALSE;
 	} else {
@@ -345,9 +389,9 @@ PHP_FUNCTION(filter_attributes)
 }
 /* }}} */
 
-/* {{{ proto string filter_tags(string source [, int unclosed = 0])
+/* {{{ proto string filter_doc(string source [, int unclosed = 0])
    Array exception) */
-PHP_FUNCTION(filter_tags)
+PHP_FUNCTION(filter_doc)
 {
 	char *source = NULL;
 	int argc = ZEND_NUM_ARGS();
@@ -358,9 +402,9 @@ PHP_FUNCTION(filter_tags)
 	if (zend_parse_parameters(argc TSRMLS_CC, "s|l", &source, &source_len, &unclosed) == FAILURE) 
 		return;
 
-	char *badTagsPattern = getBadTagsPattern(unclosed TSRMLS_CC);
-	result = zyxss_preg_replace(badTagsPattern, source, source_len TSRMLS_CC);
-	efree(badTagsPattern);
+	char *unsafe_str = get_unsafe_html(unclosed TSRMLS_CC);
+	result = zyxss_replace(unsafe_str, source, source_len TSRMLS_CC);
+	efree(unsafe_str);
 	if (NULL == result) {
 		RETVAL_FALSE;
 	} else {
@@ -371,7 +415,7 @@ PHP_FUNCTION(filter_tags)
 
 /* {{{ proto string filter_characters(string source)
    Array exception) */
-PHP_FUNCTION(filter_characters)
+PHP_FUNCTION(filter_str)
 {
 	char *source = NULL;
 	int argc = ZEND_NUM_ARGS();
@@ -381,8 +425,11 @@ PHP_FUNCTION(filter_characters)
 	if (zend_parse_parameters(argc TSRMLS_CC, "s", &source, &source_len) == FAILURE) 
 		return;
 
-	char *badCharsPattern = "\\x00|\\x01|\\x02|\\x03|\\x04|\\x05|\\x06|\\x07|\\x08|\\x0b|\\x0c|\\x0e|\\x0f|\\x11|\\x12|\\x13|\\x14|\\x15|\\x16|\\x17|\\x18|\\x19";
-	result = zyxss_preg_replace(badCharsPattern, source, source_len TSRMLS_CC);
+	char *unsafe_str = ZYXSS_G(unsafe_char);
+	/**
+	 "\\x00|\\x01|\\x02|\\x03|\\x04|\\x05|\\x06|\\x07|\\x08|\\x0b|\\x0c|\\x0e|\\x0f|\\x11|\\x12|\\x13|\\x14|\\x15|\\x16|\\x17|\\x18|\\x19";
+	 */
+	result = zyxss_replace(unsafe_str, source, source_len TSRMLS_CC);
 	if (NULL == result) {
 		RETVAL_FALSE;
 	} else {
@@ -404,16 +451,19 @@ PHP_FUNCTION(filter_xss)
 	if (zend_parse_parameters(argc TSRMLS_CC, "s|l", &source, &source_len, &unclosed) == FAILURE) 
 		return;
 
-	char *badAttrsPattern = getBadAttrPattern();
-	char *badTagsPattern = getBadTagsPattern(unclosed TSRMLS_CC);
-	char *badCharsPattern = "\\x00|\\x01|\\x02|\\x03|\\x04|\\x05|\\x06|\\x07|\\x08|\\x0b|\\x0c|\\x0e|\\x0f|\\x11|\\x12|\\x13|\\x14|\\x15|\\x16|\\x17|\\x18|\\x19";
-	int pattern_len = strlen(badAttrsPattern) + strlen(badTagsPattern) + strlen(badCharsPattern) + 2;
+	char *unsafe_js = get_unsafe_js();
+	char *unsafe_html = get_unsafe_html(unclosed TSRMLS_CC);
+	char *unsafe_char = ZYXSS_G(unsafe_char);
+	/*
+	 *"\\x00|\\x01|\\x02|\\x03|\\x04|\\x05|\\x06|\\x07|\\x08|\\x0b|\\x0c|\\x0e|\\x0f|\\x11|\\x12|\\x13|\\x14|\\x15|\\x16|\\x17|\\x18|\\x19";
+	 
+	int pattern_len = strlen(unsafe_js) + strlen(unsafe_html) + strlen(unsafe_char) + 2;
 	char *pattern = (char *)emalloc(pattern_len + 1);
-	snprintf(pattern, pattern_len, "%s|%s|%s", badAttrsPattern, badTagsPattern, badCharsPattern);
-	efree(badAttrsPattern);
-	efree(badTagsPattern);
+	snprintf(pattern, pattern_len, "%s|%s|%s", unsafe_js, unsafe_html, unsafe_char);
+	efree(unsafe_js);
+	efree(unsafe_html);
 
-	result = zyxss_preg_replace(pattern, source, source_len TSRMLS_CC);
+	result = zyxss_replace(pattern, source, source_len TSRMLS_CC);
 	efree(pattern);
 	if (NULL == result) {
 		RETVAL_FALSE;
