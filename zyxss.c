@@ -426,10 +426,8 @@ PHP_FUNCTION(filter_str)
 		return;
 
 	char *unsafe_str = ZYXSS_G(unsafe_char);
-	/**
-	 "\\x00|\\x01|\\x02|\\x03|\\x04|\\x05|\\x06|\\x07|\\x08|\\x0b|\\x0c|\\x0e|\\x0f|\\x11|\\x12|\\x13|\\x14|\\x15|\\x16|\\x17|\\x18|\\x19";
-	 */
 	result = zyxss_replace(unsafe_str, source, source_len TSRMLS_CC);
+	efree(unsafe_str);
 	if (NULL == result) {
 		RETVAL_FALSE;
 	} else {
@@ -454,14 +452,13 @@ PHP_FUNCTION(filter_xss)
 	char *unsafe_js = get_unsafe_js();
 	char *unsafe_html = get_unsafe_html(unclosed TSRMLS_CC);
 	char *unsafe_char = ZYXSS_G(unsafe_char);
-	/*
-	 *"\\x00|\\x01|\\x02|\\x03|\\x04|\\x05|\\x06|\\x07|\\x08|\\x0b|\\x0c|\\x0e|\\x0f|\\x11|\\x12|\\x13|\\x14|\\x15|\\x16|\\x17|\\x18|\\x19";
 	 
 	int pattern_len = strlen(unsafe_js) + strlen(unsafe_html) + strlen(unsafe_char) + 2;
 	char *pattern = (char *)emalloc(pattern_len + 1);
 	snprintf(pattern, pattern_len, "%s|%s|%s", unsafe_js, unsafe_html, unsafe_char);
 	efree(unsafe_js);
 	efree(unsafe_html);
+	efree(unsafe_char);
 
 	result = zyxss_replace(pattern, source, source_len TSRMLS_CC);
 	efree(pattern);
