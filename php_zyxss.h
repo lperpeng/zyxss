@@ -51,9 +51,9 @@ PHP_RINIT_FUNCTION(zyxss);
 PHP_RSHUTDOWN_FUNCTION(zyxss);
 PHP_MINFO_FUNCTION(zyxss);
 
-PHP_FUNCTION(filter_attributes);
-PHP_FUNCTION(filter_tags);
-PHP_FUNCTION(filter_characters);
+PHP_FUNCTION(filter_js);
+PHP_FUNCTION(filter_doc);
+PHP_FUNCTION(filter_str);
 PHP_FUNCTION(filter_xss);
 
 /* 

@@ -240,7 +240,7 @@ const zend_function_entry zyxss_functions[] = {
 	PHP_ME(zyxss, __destruct, NULL, ZEND_ACC_PUBLIC | ZEND_ACC_DTOR)
 	PHP_FE(filter_js,	NULL)
 	PHP_FE(filter_doc,	NULL)
-	PHP_FE(filter_characters,	NULL)
+	PHP_FE(filter_str,	NULL)
 	PHP_FE(filter_xss,	NULL)
 	PHP_FE_END	/* Must be the last line in zyxss_functions[] */
 };
@@ -421,13 +421,16 @@ PHP_FUNCTION(filter_str)
 	int argc = ZEND_NUM_ARGS();
 	int source_len;
 	char *result;
+	char *unsafe_str;
 
 	if (zend_parse_parameters(argc TSRMLS_CC, "s", &source, &source_len) == FAILURE) 
 		return;
 
-	char *unsafe_str = ZYXSS_G(unsafe_char);
+	char *unsafe_char_str = ZYXSS_G(unsafe_char);
+	unsafe_str = estrdup(unsafe_char_str);
 	result = zyxss_replace(unsafe_str, source, source_len TSRMLS_CC);
 	efree(unsafe_str);
+	
 	if (NULL == result) {
 		RETVAL_FALSE;
 	} else {
@@ -445,20 +448,21 @@ PHP_FUNCTION(filter_xss)
 	int source_len;
 	long unclosed = 0;
 	char *result;
+	char *unsafe_str;
 
 	if (zend_parse_parameters(argc TSRMLS_CC, "s|l", &source, &source_len, &unclosed) == FAILURE) 
 		return;
 
 	char *unsafe_js = get_unsafe_js();
 	char *unsafe_html = get_unsafe_html(unclosed TSRMLS_CC);
-	char *unsafe_char = ZYXSS_G(unsafe_char);
-	 
-	int pattern_len = strlen(unsafe_js) + strlen(unsafe_html) + strlen(unsafe_char) + 2;
+	char *unsafe_char_str = ZYXSS_G(unsafe_char);
+	 unsafe_str = estrdup(unsafe_char_str);
+	int pattern_len = strlen(unsafe_js) + strlen(unsafe_html) + strlen(unsafe_str) + 2;
 	char *pattern = (char *)emalloc(pattern_len + 1);
-	snprintf(pattern, pattern_len, "%s|%s|%s", unsafe_js, unsafe_html, unsafe_char);
+	snprintf(pattern, pattern_len, "%s|%s|%s", unsafe_js, unsafe_html, unsafe_str);
 	efree(unsafe_js);
 	efree(unsafe_html);
-	efree(unsafe_char);
+	efree(unsafe_str);
 
 	result = zyxss_replace(pattern, source, source_len TSRMLS_CC);
 	efree(pattern);
