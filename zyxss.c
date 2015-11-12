@@ -145,7 +145,8 @@ static char *get_unsafe_html(int unclosed TSRMLS_DC) {/*{{{*/
 	if(unsafe_num <= 0){
 		
 	}
-	unsafe_array = (char **)emalloc(sizeof(char*)*(unsafe_num+1));
+	//unsafe_array = (char **)emalloc(sizeof(char*)*(unsafe_num+1));
+	unsafe_array = (char **)safe_emalloc((strlen(unsafe_str)-unsafe_num),sizeof(char*),0);
 	str_split(unsafe_array,unsafe_str,pattern);
 	
 	if (0 == unclosed) {
@@ -198,7 +199,8 @@ static char *get_unsafe_js() {/*{{{*/
 	unsafe_str = estrdup(ini_unsafe_str);
 	
 	no_safe_num = str_split_num(unsafe_str,pattern);
-	unsafe_array = (char **)emalloc(sizeof(char*)*(no_safe_num+1));
+	//unsafe_array = (char **)emalloc(sizeof(char*)*(no_safe_num+1));
+	unsafe_array = (char **)safe_emalloc((strlen(unsafe_str)-no_safe_num),sizeof(char*),0);
 	str_split(unsafe_array,unsafe_str,pattern);
 	
 	for(i=0;i<=no_safe_num;i++){
